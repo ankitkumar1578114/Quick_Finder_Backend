@@ -25,7 +25,7 @@ app.use(bodyParser.json());
 var http = require('http').Server(app);
 var io = require('socket.io')(http, { 'transports': ['websocket', 'polling'] });
 
-http.listen(process.env.PORT||4000, () => {
+app.listen(process.env.PORT||4000, () => {
   console.log("listening");
 });
 
