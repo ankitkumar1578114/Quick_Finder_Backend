@@ -1,278 +1,399 @@
-var express = require('express')
-var cors = require('cors')
-var app = express()
-var fs = require('fs')
-var bodyParser = require('body-parser')
-const nodemailer = require('nodemailer')
+const express = require('express');
+const cors = require('cors');
+const app  = express();
+const router = express.Router();
+const multer = require('multer');
+const fs    = require('fs');
+var path = require('path');
+var  ObjectID = require('mongodb').ObjectID;
 
-var Users = require('./Models/user')
-var Chat = require('./Models/ChatSchema')
-var Buy = require('./Models/userProducts')
-
-const bcrypt = require('bcrypt');
-const saltRounds = 10;
-const myPlaintextPassword = 's0/\/\P4$$w0rD';
-const someOtherPlaintextPassword = 'not_bacon';
-
-app.use(cors())
-
-app.use(bodyParser.urlencoded({
-  extended: true
+var bodyParse = require('body-parser');
+app.use(cors());
+app.use(bodyParse.urlencoded({
+  extended:true
 }));
+app.use(bodyParse.json());
+console.log("Hejllo")
 
-app.use(bodyParser.json());
+const mongoClient = require('mongodb').MongoClient;
+const mongodbclient = new mongoClient("mongodb+srv://ankit123:asdfghjkl@cluster0.isl01.mongodb.net/mydb?retryWrites=true&w=majority",
+// const mongodbclient = new mongoClient("mongodb+srv://Avengers8:RipunJay8@cluster0.prtvt.mongodb.net/Quick_Finder?retryWrites=true&w=majority",
+{ useNewUrlParser:true,
+    useUnifiedTopology:true
+  });
 
-var http = require('http').Server(app);
-var io = require('socket.io')(http, { 'transports': ['websocket', 'polling'] });
-// require('dotenv/config')
-
-const mongoose = require('mongoose')
-
-const url = 'mongodb+srv://Avengers8:RipunJay8@cluster0.prtvt.mongodb.net/Quick_Finder?retryWrites=true&w=majority'
-
-mongoose.connect(url, { useNewUrlParser: true, useUnifiedTopology: true }, err => {
-  console.log("Connected to mongoose");
-})
-
-const path = require('path')
-const { ObjectId } = require('mongodb')
-
-io.on('connection', (socket) => {
-  console.log('a user is connected')
-  console.log(socket.id);
-
-  socket.on('join', (chatId) => {
-    socket.join(chatId);
-    Chat.findOne({ "chatId": chatId }).then(result => {
-      socket.emit('allmessages', result.mesDetails);
-    })
-  })
-
-  socket.on('disconnect', () => {
-    console.log("Disconnected");
-  })
-
-  socket.on('sent-message', (data) => {
-    var chatId = ""
-    message = data.data.message
-    chatId = data.data.room
-    id = data.data.id
-    var chatDocument = {
-      "message": message,
-      "time": new Date(),
-      "id": id
+  var storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null,'./Upload');
+    },
+    filename: (req, file, cb) => {
+       time = Date.now();
+      cb(null,time+path.extname(file.originalname));
     }
-
-    Chat.updateOne({ "chatId": chatId },
-      {
-        $push: {
-          mesDetails:
-          {
-            $each: [chatDocument]
-          }
-        }
-      }, { upsert: true }).then(() => {
-        socket.broadcast.to(chatId).emit('receive', message);
-      })
-  })
-})
-
-app.get('/', function (req, res) {
-  res.sendFile(path.join(__dirname, 'index.html'));
-})
-
-const MongoClient = require('mongodb').MongoClient;
-const { isEmptyBindingElement } = require('typescript')
-
-const client = new MongoClient(url, { useNewUrlParser: true, useUnifiedTopology: true});
-
-const dbName = "Quick_Finder";
-app.post('/filter',function(req,res){
-  const request=req
+  });
+  const filefilter = (req,file,cb)=>{
+    if(file.mimetype=== 'image/jpeg' || file.mimetype==='image/jpg'|| file.mimetype==='image/png')
+      {cb(null,true);
+      }
+    else{
+      cb({message:'Unsupported file format'},false);
+     }
+  };
+  
+  var upload = multer({
+    storage: storage,
+    limit:{
+      fileSize:1024*1024*5
+    },
+    fileFilter:filefilter
+  });
+  
+  router.post('/getdata',upload.any('Upload'),(req,res1,next) =>{
+  var str;
+    console.log("hello");        
+  console.log("Ya");
+  var description = req.body.description;
+  var instructor = req.body.instructor;
+  console.log(req.files.length)
   async function run() {
-          await client.connect();
-          const db = client.db(dbName);
-          var array=[];
-          array = await  db.collection("sellProducts").distinct("product_type");
-          res.json({"mes":array})
-        }
+    try {
+      await mongodbclient.connect();
+      console.log("connection is established !");
+      var dbo = mongodbclient.db("mydb");
+    // create a document to be inserted
+    //   var Image_details = sellProduct({
+    //     description  : description,
+    //    });
+      var pic_name;
+         pic_name = time+path.extname(req.files[0].originalname);
+    //    console.log(Image_details);
+      // var result1 = await sellProductCollection.insertOne(sellproduct);
+      // console.log(
+      //   `${result1.insertedCount} documents were inserted with the _id: ${result1.insertedId}`,
+      // );
+      // res.send(req.body);
+      var myobj = { pic_name: pic_name,description: description,instructor:instructor };
+      dbo.collection("Image_details").insertOne(myobj, function(err, res) {
+        if (err) throw err;
+        console.log("1 document inserted");
+        res1.send("Uploaded")
+        str ="Done"
+        mongodbclient.close();
+        
+    });}
+     finally {
+    }
+    }
    run().catch(console.dir);
-})
-app.post('/getDetails',function(req,res){
-  function filterByValue(array, string) {
-    return array.filter(o =>
-        Object.keys(o).some(k => o[k].toLowerCase().includes(string.toLowerCase())));
- }
-  var search_input=req.body.obj.search_input;
-  console.log("Ya its running ");
-  const request=req
-  async function run() {
-          await client.connect();
-          const db = client.db(dbName);
-          var array=[];
-          db.collection("sellProducts").find().toArray(function(err, result) {
-          if (err) throw err;
-          for(var i=0;i<result.length;i++){
-            console.log(result[i].product_name);
-            var obj={};
-            obj.product_name=result[i].product_name;
-            obj.product_type=result[i].product_type;
-            obj.status=result[i].status;
-            obj.price=result[i].price;
-            obj.description=result[i].description;
-            obj.product_images=result[i].product_images[0];
-            obj.product_id=ObjectId(result[i]._id).toString();
-            obj.seller_id=ObjectId(result[i].seller).toString();
-            array.push(obj);  
-          }
-          var anoarray=filterByValue(array,search_input);
-          anoarray=anoarray.concat(array);
-          res.json({mes:anoarray});
+   
   });
-}
-   run().catch(console.dir);  
-});
-app.post('/getUserData',function(req,res){
-  var username=new ObjectId(req.body.obj.username.toString());
-  console.log(username)
-  console.log("Ya its running ");
-  const request=req
-  async function run() {
-          await client.connect();
-          const db = client.db(dbName);
-          var obj={}
-          var array=[];
-          db.collection("Users").find({"_id":username}).toArray(function(err, result) {
-          if (err) throw err;
-            // obj.fname=result[0].name;
-            // obj.sname=result[0].sname;
-            // obj.email=result[0].email;
-            // obj.mobile=result[0].mobile;
-            // obj.address=result[0].address;  
-            console.log(obj);            
-          res.json({mes:obj});
-  });
-}
-   run().catch(console.dir);  
-});
 
-app.post('/login', async (req, res) => {
-
-  const email = req.body.loginDetails.user_name
-  const pass = req.body.loginDetails.pass_word
-
-  var loggedin = false;
-
-  Users.find({ email: email }).then(result => {
-    bcrypt.compare(pass, result[0].password, function (err, password) {
-      console.log(result);
-      if (result[0].activated) {
-        console.log("Done");
-        loggedin = true
-        res.json({ mes: "Welcome", usern: result[0]._id });
-      } else {
-        loggedin = false
-        res.json({ mes: "regIssue" })
-      }
-
-      if (result===null) {
-        console.log("Does not exist");
-        res.json({ mes: "failed" });
-      }
-    });
-  });
-})
-
-app.post('/signup', async (req, res) => {
-
-  var uname = req.body.signupDetails.fname
-  var sname = req.body.signupDetails.lname
-  var password = req.body.signupDetails.password
-  var mobile = req.body.signupDetails.mobile
-  var email = req.body.signupDetails.email
-  var address = req.body.signupDetails.address
-
-  await bcrypt.hash(password, saltRounds, function (err, hash) {
-    let personDocument = {
-      "name": uname,
-      "sname": sname,
-      "password": hash,
-      "mobile": mobile,
-      "email": email,
-      "address": address
-    }
-
-    var user = new Users(personDocument)
-
-    Users.findOne({ email: email }).then(result => {
-      console.log(result);
-      if (result !== null) {
-        console.log("User Existing");
-      } else {
-        try {
-          user.save().then(result => {
-            var transporter = nodemailer.createTransport({
-              service: 'gmail',
-              auth: {
-                user: 'quickfinder746@gmail.com',
-                pass: 'Quickfinder@746'
-              }
-            });
-
-            var mailOptions = {
-              from: 'no reply',
-              to: email,
-              subject: 'QUICK FINDER account activation.',
-              html: '<a href="http://localhost:4000/activate/'
-                + result._id +
-                '">Click on the link to activate your account.</a>'
+  app.post('/getDetails',function(req,res){
+    console.log("Ya its running ");
+    const request=req
+    async function run() {
+           await mongodbclient.connect();
+           console.log("connection is established !");
+            // console.log("Connected correctly to server");
+            const db = mongodbclient.db("mydb");
+            var array=[];
+            db.collection("Image_details").find().toArray(function(err, result) {
+            if (err) throw err;
+            for(var i=0;i<result.length;i++){
+              var obj={};
+              obj.instructor=result[i].instructor;
+              obj.description=result[i].description;
+              obj.pic_name=result[i].pic_name;
+              array.push(obj);  
             }
-
-            transporter.sendMail(mailOptions, function (error, info) {
-              if (error) {
-                console.log(error);
-              } else {
-                console.log('Email sent: ' + info.response);
-              }
-            });
-          })
-
-        } catch (err) {
-          console.log(err.stack);
-        }
-      }
-    })
-  });
-})
-
-app.get('/activate/:id', async (req, res) => {
-  await Users.updateOne({ "_id": ObjectId(req.params.id) },
-    { $set: { "activated": true } }).then(result => {
-      res.send(result)
-    })
-})
-
-
-app.post('/buy', async (req, res) => {
-  var buyerID = req.body.buyDetails.buyerID
-  var sellerID = req.body.buyDetails.sellerID
-  var productID = req.body.buyDetails.productID
-  var datetime = req.body.buyDetails.DateTime
-
-  let buyDocument = {
-    "Time": datetime,
-    "SellerId": new ObjectId("5ff5404a31512f1b0ad64a48"),
-    "ProductId": new ObjectId("600c876d15877370d8e380b7")
+            res.json({mes:array});
+    });
   }
-  console.log(buyDocument);
+     run().catch(console.dir);  
+  });
+  
+  app.post('/getDetailsofimages',function(req,res){
+    console.log("Ya its running ");
+    var email = req.body.email;
+    const request=req
+    async function run() {
+           await mongodbclient.connect();
+           console.log("connection is established !");
+            // console.log("Connected correctly to server");
+            const db = mongodbclient.db("mydb");
+            var array=[];
+            db.collection("Image_details").find({instructor:email}).toArray(function(err, result) {
+            if (err) throw err;
+            for(var i=0;i<result.length;i++){
+              var obj={};
+              obj.description=result[i].description;
+              obj.pic_name=result[i].pic_name;
+              array.push(obj);  
+            }
+            res.json({mes:array});
+    });
+  }
+     run().catch(console.dir);  
+  });
 
-  await Buy.updateOne({ "_id": ObjectId(buyerID) },
-    { $push: { purchased: buyDocument } },
-    { upsert: true })
+  
+  app.post('/rateimages',function(req,res){
+    console.log("Ya its running ");
+    var main_pic = req.body.main_pic;
+    console.log(main_pic)
+    const request=req
+    async function run() {
+           await mongodbclient.connect();
+           console.log("connection is established !");
+            // console.log("Connected correctly to server");
+            const db = mongodbclient.db("mydb");
+            var array=[];
+            db.collection("Image_details_response").find({main_pic:main_pic}).toArray(function(err, result) {
+            if (err) throw err;
+            for(var i=0;i<result.length;i++){
+              var obj={};
+              obj.student=result[i].student;
+              obj.pic_name=result[i].pic_name;
+              array.push(obj);  
+            }
+            res.json({mes:array});
+    });
+  }
+     run().catch(console.dir);  
+  });
 
-  console.log("buy Added");
-  res.json({ mes: buyDocument });
-})
+
+  router.post('/rate',(req,res1)=>{
+    console.log("Ya its running ");
+    var rate = req.body.rate;
+    var pic_name = req.body.pic_name;
+    console.log(pic_name)
+    const request=req
+
+
+
+    async function run() {
+          try{ 
+          await mongodbclient.connect();
+           console.log("connection is established !");
+            // console.log("Connected correctly to server");
+            const dbo = mongodbclient.db("mydb");
+            var myobj = {$set:{ pic_name: pic_name,rate:rate}};
+            dbo.collection("Image_details_rate").updateMany({pic_name:pic_name},myobj,{upsert:true}, function(err, res) {
+              if (err) throw err;
+              console.log("1 document inserted");
+              str ="Done"
+              res1.json({"mes":"Rating_given"})
+            
+              
+          });
+        
+    }
+    finally{
+
+    }
+  }
+      
+     run().catch(console.dir);  
+  });
+
+
+  router.post('/iuploadstudent',upload.any('Upload'),(req,res,next) =>{
+    var str="";
+      console.log("hello");        
+    console.log("Ya");
+    var student = req.body.student;
+    var main_pic = req.body.main_pic;
+    console.log(req.files.length)
+    async function run() {
+      try {
+        await mongodbclient.connect();
+        console.log("connection is established !");
+        var dbo = mongodbclient.db("mydb");
+      // create a document to be inserted
+      //   var Image_details = sellProduct({
+      //     description  : description,
+      //    });
+        var pic_name;
+           pic_name = time+path.extname(req.files[0].originalname);
+           //    console.log(Image_details);
+        // var result1 = await sellProductCollection.insertOne(sellproduct);
+        // console.log(
+        //   `${result1.insertedCount} documents were inserted with the _id: ${result1.insertedId}`,
+        // );
+        // res.send(req.body);
+        var myobj = { pic_name: pic_name,student:student,main_pic:main_pic };
+        dbo.collection("Image_details_response").insertOne(myobj, function(err, res) {
+          if (err) throw err;
+          console.log("1 document inserted");
+          str ="Done"
+          
+      });
+      res.send("Done");
+    }
+       finally {
+      }
+      }
+     run().catch(console.dir);
+     
+    });
+  
+
+
+    
+  router.post('/signup',(req,res,next) =>{
+      console.log(req.body);         
+      var email=req.body.email;
+      var password = req.body.password;
+      async function run() {
+        try {
+          await mongodbclient.connect();
+          console.log("connection is established !");
+          var dbo = mongodbclient.db("mydb");
+
+        //    console.log(Image_details);
+          // var result1 = await sellProductCollection.insertOne(sellproduct);
+          // console.log(
+          //   `${result1.insertedCount} documents were inserted with the _id: ${result1.insertedId}`,
+          // );
+          // res.send(req.body);
+          var myobj = { email: email,password: password};
+          dbo.collection("Student_details").find({email:email}).toArray(function(err, result) {
+            if(result.length==0)
+            {
+            dbo.collection("Instructor_details").insertOne(myobj, function(err, res) {
+            if (err) throw err;
+            console.log("1 document inserted");
+            str ="Done"
+            mongodbclient.close();
+            })
+          }else{
+           console.log("Already Registered"); 
+          }
+          });
+        }
+         finally {
+        }
+        }
+       run().catch(console.dir);
+      
+    });
+
+    router.post('/signupfs',(req,res,next) =>{
+      console.log(req.body);         
+      var email=req.body.email;
+      var password = req.body.password;
+      var level = req.body.level;
+      async function run() {
+        try {
+          await mongodbclient.connect();
+          console.log("connection is established !");
+          var dbo = mongodbclient.db("mydb");
+
+        //    console.log(Image_details);
+          // var result1 = await sellProductCollection.insertOne(sellproduct);
+          // console.log(
+          //   `${result1.insertedCount} documents were inserted with the _id: ${result1.insertedId}`,
+          // );
+          // res.send(req.body);
+          var myobj = { email: email,password: password,level:level};
+          dbo.collection("Student_details").find({email:email}).toArray(function(err, result) {
+            if(result.length==0)
+            {
+              dbo.collection("Student_details").insertOne(myobj, function(err, res) {
+                if (err) throw err;
+                console.log("1 document inserted");
+                str ="Done"
+                mongodbclient.close();
+     
+            })
+          }else{
+            console.log("Already Exist")
+          }
+        });           
+        ;}
+         finally {
+        }
+        }
+       run().catch(console.dir);
+      
+    });
+
+    router.post('/login',(req,res,next) =>{
+      console.log(req.body);         
+      var email=req.body.email;
+      var password = req.body.password;
+      console.log(email)
+      console.log(password)
+      async function run() {
+        try {
+          await mongodbclient.connect();
+          console.log("connection is established !");
+          var dbo = mongodbclient.db("mydb");
+          dbo.collection("Instructor_details").find({email:email}).toArray(function(err, result) {
+            for(var i=0;i<result.length;i++){
+            if(result[i].password===password)
+           {
+            res.json({"mes":"yea","email":email})
+           console.log("Logged In ") 
+           } else{
+            console.log("No") 
+           }}
+          });
+        //    console.log(Image_details);
+          // var result1 = await sellProductCollection.insertOne(sellproduct);
+          // console.log(
+          //   `${result1.insertedCount} documents were inserted with the _id: ${result1.insertedId}`,
+          // );
+          // res.send(req.body);
+        console.log("Hmm");  
+        }
+         finally {
+        }
+        }
+       run().catch(console.dir);
+      
+    });
+
+
+    router.post('/loginfs',(req,res,next) =>{
+      console.log(req.body);         
+      var email=req.body.email;
+      var password = req.body.password;
+      console.log(email)
+      console.log(password)
+      async function run() {
+        try {
+          await mongodbclient.connect();
+          console.log("connection is established !");
+          var dbo = mongodbclient.db("mydb");
+          dbo.collection("Student_details").find({email:email}).toArray(function(err, result) {
+            for(var i=0;i<result.length;i++){
+            if(result[0].password===password)
+           {
+            res.json({"mes":"yea","email":email})
+           console.log("Logged In ") 
+           } else{
+            console.log("No") 
+           }}
+          });
+        //    console.log(Image_details);
+          // var result1 = await sellProductCollection.insertOne(sellproduct);
+          // console.log(
+          //   `${result1.insertedCount} documents were inserted with the _id: ${result1.insertedId}`,
+          // );
+          // res.send(req.body);
+        console.log("Hmm");  
+        }
+         finally {
+        }
+        }
+       run().catch(console.dir);
+      
+    });
+
+
+    console.log("Hejllo")
 if(process.env.NODE_ENV==="production")
 {
 app.use(express.static('Client/build'))  
