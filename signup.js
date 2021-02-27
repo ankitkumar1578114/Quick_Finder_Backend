@@ -24,14 +24,6 @@ app.use(bodyParser.json());
 
 var http = require('http').Server(app);
 var io = require('socket.io')(http, { 'transports': ['websocket', 'polling'] });
-if(process.env.NODE_ENV==="production")
-{
-app.use(express.static('Client/build'))  
-}
-http.listen(process.env.PORT||4000, () => {
-  console.log("listening");
-});
-
 // require('dotenv/config')
 
 const mongoose = require('mongoose')
@@ -281,3 +273,13 @@ app.post('/buy', async (req, res) => {
   console.log("buy Added");
   res.json({ mes: buyDocument });
 })
+if(process.env.NODE_ENV==="production")
+{
+app.use(express.static('Client/build'))  
+}
+
+app.use('',router);
+  app.listen(process.env.PORT||3005,()=>{
+    console.log("server is running");
+  }
+  );
